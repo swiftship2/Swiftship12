@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwiftShip — Track Your Package</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0d0d0d;
+  --paper: #f5f0e8;
+  --amber: #f5a623;
+  --amber-dark: #c47e0a;
+  --rust: #c94b2a;
+  --slate: #3a3a3a;
+  --mid: #888;
+  --border: rgba(13,13,13,0.12);
+  --sidebar-w: 240px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+/* ── VIEWS ── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ══════════════════════════════════════════════
+   PUBLIC TRACKING SITE
+══════════════════════════════════════════════ */
+#view-public { min-height: 100vh; }
+
+.pub-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 48px; border-bottom: 2px solid var(--ink);
+  background: var(--paper); position: sticky; top: 0; z-index: 50;
+}
+.logo { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 2px; text-decoration: none; color: var(--ink); }
+.logo span { color: var(--amber); }
+.admin-toggle {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px;
+  background: var(--ink); color: var(--paper); border: none;
+  padding: 8px 18px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  font-weight: 600; transition: background 0.2s;
+}
+.admin-toggle:hover { background: var(--amber); color: var(--ink); }
+
+.hero {
+  display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 88vh; border-bottom: 2px solid var(--ink);
+}
+.hero-left {
+  padding: 80px 48px; display: flex; flex-direction: column;
+  justify-content: center; border-right: 2px solid var(--ink);
+  animation: fadeUp 0.7s ease both;
+}
+.eyebrow {
+  font-size: 0.7rem; letter-spacing: 4px; text-transform: uppercase;
+  color: var(--rust); margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content: ''; display: block; width: 28px; height: 2px; background: var(--rust); }
+.hero h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem, 9vw, 8.5rem);
+  line-height: 0.9; letter-spacing: -1px; margin-bottom: 28px;
+}
+.hero h1 em { color: var(--amber); font-style: normal; }
+.hero-sub { font-size: 1rem; color: var(--slate); line-height: 1.7; max-width: 400px; margin-bottom: 40px; font-weight: 300; }
+
+.hero-right {
+  background: var(--ink); display: flex; align-items: center;
+  justify-content: center; padding: 48px; position: relative; overflow: hidden;
+  animation: fadeUp 0.7s 0.1s ease both;
+}
+.hero-right::before {
+  content: 'TRACK';
+  position: absolute; font-family: 'Bebas Neue', sans-serif;
+  font-size: 20vw; color: rgba(255,255,255,0.03);
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  pointer-events: none; white-space: nowrap;
+}
+
+.track-box {
+  background: var(--paper); border: 3px solid var(--amber);
+  padding: 40px 36px; width: 100%; max-width: 400px; position: relative; z-index: 2;
+}
+.track-box h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 2px; margin-bottom: 6px; }
+.track-box p { font-size: 0.82rem; color: var(--mid); margin-bottom: 24px; }
+.track-input { width: 100%; padding: 13px 16px; border: 2px solid var(--ink); background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.95rem; letter-spacing: 2px; outline: none; margin-bottom: 10px; transition: border-color 0.2s; }
+.track-input:focus { border-color: var(--amber); }
+.track-input::placeholder { color: var(--mid); letter-spacing: 1px; }
+.track-btn-pub {
+  width: 100%; padding: 14px; background: var(--amber); border: 2px solid var(--amber);
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 3px;
+  cursor: pointer; color: var(--ink); transition: all 0.2s;
+}
+.track-btn-pub:hover { background: var(--ink); color: var(--amber); border-color: var(--ink); }
+
+#track-result { display: none; margin-top: 24px; border-top: 2px solid var(--border); padding-top: 20px; }
+#track-result.show { display: block; }
+.result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.result-code { font-size: 0.7rem; color: var(--mid); letter-spacing: 2px; text-transform: uppercase; }
+.result-route { font-weight: 600; font-size: 0.88rem; margin-top: 3px; }
+.sbadge { display: inline-block; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; border-radius: 2px; }
+.sbadge.transit { background: #fef3c7; color: #92400e; }
+.sbadge.delivered { background: #d1fae5; color: #065f46; }
+.sbadge.processing { background: #e0e7ff; color: #3730a3; }
+.sbadge.pending { background: #f3f4f6; color: #6b7280; }
+
+.pub-timeline { list-style: none; padding-left: 16px; border-left: 2px solid var(--border); margin-bottom: 14px; }
+.pub-timeline li { position: relative; padding: 8px 0 8px 18px; font-size: 0.8rem; }
+.pub-timeline li::before {
+  content: ''; position: absolute; left: -7px; top: 12px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--border);
+}
+.pub-timeline li.done::before { background: var(--amber); border-color: var(--amber); }
+.pub-timeline li.current::before { background: var(--rust); border-color: var(--rust); box-shadow: 0 0 0 3px rgba(201,75,42,0.2); }
+.tl-time { font-size: 0.7rem; color: var(--mid); margin-top: 2px; }
+.eta-box { padding: 10px 14px; background: rgba(245,166,35,0.1); border-left: 3px solid var(--amber); font-size: 0.78rem; }
+
+.pub-stats { display: grid; grid-template-columns: repeat(4,1fr); border-bottom: 2px solid var(--ink); }
+.pub-stat { padding: 40px 32px; border-right: 2px solid var(--ink); }
+.pub-stat:last-child { border-right: none; }
+.pub-stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; line-height: 1; margin-bottom: 6px; }
+.pub-stat-num span { color: var(--amber); }
+.pub-stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--mid); }
+
+.pub-footer {
+  background: var(--ink); color: var(--paper);
+  padding: 32px 48px; display: flex; justify-content: space-between; align-items: center;
+}
+.pub-footer .logo { color: var(--paper); }
+.pub-footer p { font-size: 0.78rem; color: rgba(255,255,255,0.3); }
+
+/* ══════════════════════════════════════════════
+   ADMIN PASSWORD GATE
+══════════════════════════════════════════════ */
+#view-login {
+  min-height: 100vh; background: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-box {
+  background: #1a1a1a; border: 1px solid rgba(255,255,255,0.08);
+  padding: 48px 40px; width: 100%; max-width: 380px; text-align: center;
+}
+.login-box .logo { color: var(--paper); display: block; margin-bottom: 4px; }
+.login-box .sub { font-size: 0.75rem; color: rgba(255,255,255,0.3); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 36px; }
+.login-input {
+  width: 100%; padding: 13px 16px; background: #111; border: 1px solid rgba(255,255,255,0.1);
+  color: var(--paper); font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+  outline: none; margin-bottom: 12px; text-align: center; letter-spacing: 4px;
+  transition: border-color 0.2s; border-radius: 2px;
+}
+.login-input:focus { border-color: var(--amber); }
+.login-btn {
+  width: 100%; padding: 13px; background: var(--amber); border: none;
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 3px;
+  cursor: pointer; color: var(--ink); transition: background 0.2s;
+}
+.login-btn:hover { background: var(--amber-dark); }
+.login-hint { font-size: 0.72rem; color: rgba(255,255,255,0.2); margin-top: 16px; }
+.login-error { color: #f87171; font-size: 0.78rem; margin-top: 8px; display: none; }
+
+/* ══════════════════════════════════════════════
+   ADMIN DASHBOARD
+══════════════════════════════════════════════ */
+#view-admin { display: none; min-height: 100vh; background: #111; color: var(--paper); flex-direction: row; }
+#view-admin.active { display: flex; }
+
+.sidebar {
+  width: var(--sidebar-w); background: #0a0a0a;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; height: 100vh; z-index: 10;
+}
+.sidebar-logo { padding: 24px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sidebar-logo .logo { color: var(--paper); font-size: 1.6rem; display: block; }
+.sidebar-badge {
+  display: inline-block; font-size: 0.55rem; background: var(--rust);
+  color: white; padding: 2px 6px; letter-spacing: 2px; font-weight: 700;
+  text-transform: uppercase; vertical-align: middle; margin-left: 4px;
+  font-family: 'DM Sans', sans-serif; border-radius: 2px;
+}
+.sidebar-nav { padding: 16px 0; flex: 1; overflow-y: auto; }
+.nav-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.2); padding: 14px 20px 6px; }
+button.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; cursor: pointer; width: 100%;
+  font-size: 0.83rem; color: rgba(255,255,255,0.5);
+  transition: all 0.15s; border-left: 3px solid transparent;
+  background: none; border-top: none; border-right: none; border-bottom: none;
+  text-align: left; font-family: 'DM Sans', sans-serif;
+}
+button.nav-item:hover { color: var(--paper); background: rgba(255,255,255,0.04); }
+button.nav-item.active { color: var(--paper); background: rgba(245,166,35,0.08); border-left-color: var(--amber); }
+.nav-icon { font-size: 0.95rem; min-width: 18px; text-align: center; }
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.06); }
+.back-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 9px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.5); cursor: pointer; font-size: 0.78rem;
+  font-family: 'DM Sans', sans-serif; border-radius: 2px; transition: all 0.15s;
+}
+.back-btn:hover { color: var(--paper); background: rgba(255,255,255,0.1); }
+
+.admin-main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 32px; background: #0d0d0d;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  position: sticky; top: 0; z-index: 5;
+}
+.page-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px; }
+.gen-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 22px; background: var(--amber); border: none;
+  font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+  cursor: pointer; color: var(--ink); transition: background 0.2s; border-radius: 2px;
+}
+.gen-btn:hover { background: var(--amber-dark); }
+
+.panel { display: none; padding: 28px 32px; animation: fadeIn 0.2s ease; }
+.panel.active { display: block; }
+
+/* STAT CARDS */
+.stat-cards { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+.stat-card { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.06); padding: 22px; border-radius: 3px; }
+.sc-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.35); margin-bottom: 10px; }
+.sc-val { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; line-height: 1; }
+.c-amber { color: var(--amber); }
+.c-green { color: #4ade80; }
+.c-blue { color: #60a5fa; }
+.c-red { color: #f87171; }
+
+/* TABLE */
+.sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.sec-head h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 2px; }
+.table-wrap { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+thead th {
+  text-align: left; padding: 11px 14px;
+  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 2px;
+  color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: 500;
+}
+tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody td { padding: 12px 14px; font-size: 0.8rem; color: rgba(255,255,255,0.7); }
+.td-code { font-family: monospace; color: var(--amber); letter-spacing: 1px; font-size: 0.8rem; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 2px; font-size: 0.62rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.badge-transit { background: rgba(245,166,35,0.15); color: var(--amber); }
+.badge-delivered { background: rgba(74,222,128,0.12); color: #4ade80; }
+.badge-processing { background: rgba(96,165,250,0.12); color: #60a5fa; }
+.badge-pending { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+.act-btns { display: flex; gap: 5px; }
+.btn-xs {
+  padding: 4px 10px; font-size: 0.68rem; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; border: 1px solid rgba(255,255,255,0.15);
+  background: transparent; color: var(--paper); cursor: pointer;
+  transition: all 0.15s; border-radius: 2px; font-family: 'DM Sans', sans-serif;
+}
+.btn-xs:hover { background: rgba(255,255,255,0.08); }
+.btn-xs.a { border-color: var(--amber); color: var(--amber); }
+.btn-xs.a:hover { background: var(--amber); color: var(--ink); }
+.btn-xs.d { border-color: #f87171; color: #f87171; }
+.btn-xs.d:hover { background: #f87171; color: #fff; }
+
+/* FORM */
+.form-card { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 3px; padding: 28px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.fg { display: flex; flex-direction: column; gap: 5px; }
+.fg.full { grid-column: 1/-1; }
+.fl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.35); font-weight: 500; }
+.fi, .fs, .fta {
+  background: #111; border: 1px solid rgba(255,255,255,0.1);
+  color: var(--paper); padding: 10px 13px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  border-radius: 2px; outline: none; transition: border-color 0.15s;
+}
+.fi:focus, .fs:focus, .fta:focus { border-color: var(--amber); }
+.fs option { background: #1a1a1a; }
+.fta { resize: vertical; min-height: 70px; }
+.btn-primary {
+  padding: 12px 28px; background: var(--amber); border: none;
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: 2px;
+  cursor: pointer; color: var(--ink); transition: background 0.2s; border-radius: 2px;
+}
+.btn-primary:hover { background: var(--amber-dark); }
+.btn-outline {
+  padding: 11px 22px; background: transparent; border: 1px solid rgba(255,255,255,0.15);
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  cursor: pointer; color: var(--paper); transition: all 0.2s; border-radius: 2px;
+}
+.btn-outline:hover { background: rgba(255,255,255,0.06); }
+.form-actions { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+.code-result {
+  margin-top: 20px; padding: 16px 20px;
+  background: #0a0a0a; border: 1px solid var(--amber);
+  border-radius: 3px; display: none;
+  align-items: center; justify-content: space-between;
+}
+.code-result.show { display: flex; }
+.cr-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 2px; color: var(--mid); margin-bottom: 4px; }
+.cr-code { font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; letter-spacing: 4px; color: var(--amber); }
+
+/* UPDATE LOCATION */
+.update-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.timeline-preview { list-style: none; padding-left: 14px; border-left: 2px solid rgba(255,255,255,0.08); }
+.timeline-preview li { position: relative; padding: 8px 0 8px 16px; font-size: 0.78rem; }
+.timeline-preview li::before {
+  content: ''; position: absolute; left: -7px; top: 11px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.15);
+}
+.timeline-preview li.done::before { background: var(--amber); border-color: var(--amber); }
+.timeline-preview li.cur::before { background: var(--rust); border-color: var(--rust); box-shadow: 0 0 0 3px rgba(201,75,42,0.25); }
+.tl-lbl { color: rgba(255,255,255,0.8); }
+.tl-meta { font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-top: 2px; }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; padding: 28px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; animation: fadeIn 0.2s ease; }
+.modal h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 2px; margin-bottom: 20px; }
+.modal-footer { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
+/* QUICK CREATE MODAL */
+#modal-create .form-grid { grid-template-columns: 1fr 1fr; }
+
+/* EMPTY */
+.empty { text-align: center; padding: 50px 20px; color: rgba(255,255,255,0.2); }
+.empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.empty p { font-size: 0.82rem; }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #1a1a1a; color: var(--paper);
+  padding: 12px 18px; font-size: 0.8rem;
+  border-left: 3px solid var(--amber); border-radius: 2px;
+  transform: translateX(120%); transition: transform 0.3s;
+  z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast.show { transform: translateX(0); }
+.toast.ok { border-left-color: #4ade80; }
+.toast.err { border-left-color: #f87171; }
+
+/* ANIMATIONS */
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.spinner { display:inline-block; width:12px; height:12px; border:2px solid var(--ink); border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; margin-right:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* SEARCH */
+.search-input {
+  background: #111; border: 1px solid rgba(255,255,255,0.1);
+  color: var(--paper); padding: 8px 13px; font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem; border-radius: 2px; outline: none; width: 220px;
+  transition: border-color 0.15s;
+}
+.search-input:focus { border-color: var(--amber); }
+.search-input::placeholder { color: rgba(255,255,255,0.2); }
+
+/* DIVIDER */
+.form-divider { grid-column:1/-1; border-top:1px solid rgba(255,255,255,0.06); padding-top:16px; margin-top:4px; }
+.form-divider-label { font-size:0.6rem; text-transform:uppercase; letter-spacing:3px; color:rgba(255,255,255,0.2); margin-bottom:10px; }
+
+/* FILTER */
+.filter-select { background:#111; border:1px solid rgba(255,255,255,0.1); color:var(--paper); padding:7px 12px; font-size:0.78rem; border-radius:2px; outline:none; font-family:'DM Sans',sans-serif; }
+.filter-select option { background:#1a1a1a; }
+
+/* MOBILE */
+@media (max-width:768px) {
+  .hero { grid-template-columns:1fr; min-height:auto; }
+  .hero-right { min-height:60vh; }
+  .pub-stats { grid-template-columns:1fr 1fr; }
+  .pub-stat:nth-child(3) { border-top:2px solid var(--ink); }
+  .pub-stat:nth-child(2) { border-right:none; }
+  .pub-stat:nth-child(4) { border-right:none; border-top:2px solid var(--ink); }
+  .pub-nav { padding:16px 20px; }
+  .hero-left { padding:60px 20px; }
+  .sidebar { width:56px; }
+  .nav-label, button.nav-item span, .sidebar-logo .logo, .sidebar-badge, .back-btn span { display:none; }
+  .admin-main { margin-left:56px; }
+  .stat-cards { grid-template-columns:1fr 1fr; }
+  .panel { padding:16px; }
+  .topbar { padding:12px 16px; }
+  .form-grid { grid-template-columns:1fr; }
+  #modal-create .form-grid { grid-template-columns:1fr; }
+  .update-grid { grid-template-columns:1fr; }
+  .pub-footer { flex-direction:column; gap:12px; text-align:center; }
+  .pub-nav { gap:8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ PUBLIC TRACKING VIEW ══ -->
+<div id="view-public" class="view active">
+  <nav class="pub-nav">
+    <a class="logo" href="#">Swift<span>Ship</span></a>
+    <button class="admin-toggle" onclick="showLogin()">⚙ Admin</button>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-left">
+      <div class="eyebrow">Global Delivery Network</div>
+      <h1>Move<br><em>Fast.</em><br>Move<br>Right.</h1>
+      <p class="hero-sub">SwiftShip delivers your packages across 180+ countries with real-time tracking, guaranteed timelines, and zero excuses.</p>
+    </div>
+    <div class="hero-right">
+      <div class="track-box">
+        <h2>Track Your Shipment</h2>
+        <p>Enter your tracking number below</p>
+        <input class="track-input" id="pub-input" placeholder="e.g. SWS-1234567-LA" maxlength="25" />
+        <button class="track-btn-pub" onclick="pubTrack()">TRACK NOW</button>
+        <div id="track-result">
+          <div class="result-header">
+            <div>
+              <div class="result-code" id="r-code"></div>
+              <div class="result-route" id="r-route"></div>
+            </div>
+            <div id="r-badge"></div>
+          </div>
+          <ul class="pub-timeline" id="r-timeline"></ul>
+          <div class="eta-box" id="r-eta"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pub-stats">
+    <div class="pub-stat"><div class="pub-stat-num">12<span>M+</span></div><div class="pub-stat-label">Packages Delivered</div></div>
+    <div class="pub-stat"><div class="pub-stat-num">180<span>+</span></div><div class="pub-stat-label">Countries Covered</div></div>
+    <div class="pub-stat"><div class="pub-stat-num">99<span>.4%</span></div><div class="pub-stat-label">On-Time Rate</div></div>
+    <div class="pub-stat"><div class="pub-stat-num">24<span>/7</span></div><div class="pub-stat-label">Live Support</div></div>
+  </section>
+
+  <footer class="pub-footer">
+    <a class="logo" href="#">Swift<span>Ship</span></a>
+    <p>© 2026 SwiftShip Ltd. All rights reserved.</p>
+  </footer>
+</div>
+
+<!-- ══ LOGIN GATE ══ -->
+<div id="view-login" class="view">
+  <div class="login-box">
+    <a class="logo" href="#" onclick="showPublic()">Swift<span>Ship</span></a>
+    <div class="sub">Admin Access</div>
+    <input class="login-input" type="password" id="login-pass" placeholder="••••••••" />
+    <button class="login-btn" onclick="doLogin()">ENTER</button>
+    <div class="login-hint">Default password: admin123</div>
+    <div class="login-error" id="login-err">Wrong password. Try again.</div>
+  </div>
+</div>
+
+<!-- ══ ADMIN VIEW ══ -->
+<div id="view-admin" class="view">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo">Swift<span>Ship</span><span class="sidebar-badge">Admin</span></span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">Overview</div>
+      <button class="nav-item active" onclick="goPanel('dashboard',this)"><span class="nav-icon">📊</span><span>Dashboard</span></button>
+      <div class="nav-label">Shipments</div>
+      <button class="nav-item" onclick="openCreate()"><span class="nav-icon">➕</span><span>New Shipment</span></button>
+      <button class="nav-item" onclick="goPanel('all',this)"><span class="nav-icon">📦</span><span>All Shipments</span></button>
+      <button class="nav-item" onclick="goPanel('update',this)"><span class="nav-icon">📍</span><span>Update Location</span></button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="back-btn" onclick="showPublic()">← <span>Back to Site</span></button>
+    </div>
+  </aside>
+
+  <div class="admin-main">
+    <div class="topbar">
+      <div class="page-title" id="page-title">Dashboard</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input class="search-input" placeholder="🔍 Search tracking #..." id="search-input" oninput="doSearch()" />
+        <button class="gen-btn" onclick="openCreate()">＋ Generate Shipment</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="stat-cards">
+        <div class="stat-card"><div class="sc-label">Total Shipments</div><div class="sc-val c-amber" id="s-total">0</div></div>
+        <div class="stat-card"><div class="sc-label">In Transit</div><div class="sc-val c-amber" id="s-transit">0</div></div>
+        <div class="stat-card"><div class="sc-label">Delivered</div><div class="sc-val c-green" id="s-delivered">0</div></div>
+        <div class="stat-card"><div class="sc-label">Processing</div><div class="sc-val c-blue" id="s-processing">0</div></div>
+      </div>
+      <div class="sec-head">
+        <h3>Recent Shipments</h3>
+        <button class="btn-xs a" onclick="goPanel('all',null)">View All →</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tracking #</th><th>Sender</th><th>Recipient</th><th>Route</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="dash-tbody"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ALL SHIPMENTS -->
+    <div class="panel" id="panel-all">
+      <div class="sec-head">
+        <h3>All Shipments (<span id="all-count">0</span>)</h3>
+        <select class="filter-select" onchange="setFilter(this.value)">
+          <option value="">All Statuses</option>
+          <option value="in-transit">In Transit</option>
+          <option value="delivered">Delivered</option>
+          <option value="processing">Processing</option>
+          <option value="pending">Pending</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tracking #</th><th>Sender</th><th>Recipient</th><th>Origin</th><th>Destination</th><th>Service</th><th>Status</th><th>ETA</th><th>Actions</th></tr></thead>
+        <tbody id="all-tbody"></tbody>
+      </table></div>
+    </div>
+
+    <!-- UPDATE LOCATION -->
+    <div class="panel" id="panel-update">
+      <div class="update-grid">
+        <div class="form-card">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:2px;margin-bottom:4px;">Update Package Location</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.3);margin-bottom:20px;">Add a checkpoint and change status</div>
+          <div class="fg" style="margin-bottom:14px;">
+            <label class="fl">Select Shipment</label>
+            <select class="fs" id="u-select" onchange="loadForUpdate()"><option value="">— Choose —</option></select>
+          </div>
+          <div id="u-fields" style="display:none;">
+            <div class="fg" style="margin-bottom:14px;">
+              <label class="fl">Current Location / Checkpoint</label>
+              <input class="fi" id="u-loc" placeholder="e.g. Dubai International Airport" />
+            </div>
+            <div class="fg" style="margin-bottom:14px;">
+              <label class="fl">Event Description</label>
+              <input class="fi" id="u-event" placeholder="e.g. Package cleared customs" />
+            </div>
+            <div class="fg" style="margin-bottom:14px;">
+              <label class="fl">New Status</label>
+              <select class="fs" id="u-status">
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="in-transit">In Transit</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+            <div class="fg" style="margin-bottom:20px;">
+              <label class="fl">Update ETA (optional)</label>
+              <input class="fi" id="u-eta" type="date" />
+            </div>
+            <button class="btn-primary" style="width:100%;" onclick="doUpdateLocation()">UPDATE NOW</button>
+          </div>
+        </div>
+        <div class="form-card" id="u-preview">
+          <div class="empty"><div class="empty-icon">📍</div><p>Select a shipment to see its timeline</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CREATE SHIPMENT MODAL ══ -->
+<div class="modal-overlay" id="modal-create">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 style="margin:0;">⚡ New Shipment</h3>
+      <button onclick="closeCreate()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:1.3rem;cursor:pointer;">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label class="fl">Sender Name *</label><input class="fi" id="c-sender" placeholder="John Doe" /></div>
+      <div class="fg"><label class="fl">Sender Phone</label><input class="fi" id="c-sender-phone" placeholder="+234 800 000 0000" /></div>
+      <div class="fg"><label class="fl">Origin Country *</label>
+        <select class="fs" id="c-origin">
+          <option value="">— Select Country —</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Origin City *</label><input class="fi" id="c-origin-city" placeholder="Lagos" /></div>
+      <div class="form-divider"><div class="form-divider-label">Recipient Details</div></div>
+      <div class="fg"><label class="fl">Recipient Name *</label><input class="fi" id="c-recipient" placeholder="Jane Smith" /></div>
+      <div class="fg"><label class="fl">Recipient Phone</label><input class="fi" id="c-recipient-phone" placeholder="+44 7700 000000" /></div>
+      <div class="fg"><label class="fl">Destination Country *</label>
+        <select class="fs" id="c-dest">
+          <option value="">— Select Country —</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Destination City *</label><input class="fi" id="c-dest-city" placeholder="London" /></div>
+      <div class="fg"><label class="fl">Delivery Address</label><input class="fi" id="c-dest-addr" placeholder="221B Baker Street" /></div>
+      <div class="form-divider"><div class="form-divider-label">Package Details</div></div>
+      <div class="fg"><label class="fl">Package Description *</label><input class="fi" id="c-desc" placeholder="Electronics, Documents..." /></div>
+      <div class="fg"><label class="fl">Weight (kg)</label><input class="fi" id="c-weight" type="number" placeholder="2.5" step="0.1" min="0.1" /></div>
+      <div class="fg"><label class="fl">Service Type</label>
+        <select class="fs" id="c-service">
+          <option value="Express">Express (1–2 days)</option>
+          <option value="Standard">Standard (3–5 days)</option>
+          <option value="Freight">International Freight (5–10 days)</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Estimated Delivery Date</label><input class="fi" id="c-eta" type="date" /></div>
+      <div class="fg full"><label class="fl">Notes (optional)</label><textarea class="fta" id="c-notes" placeholder="Fragile, handle with care..."></textarea></div>
+    </div>
+    <div id="c-result" class="code-result">
+      <div><div class="cr-label">Tracking Number</div><div class="cr-code" id="c-code">—</div></div>
+      <button class="btn-xs a" onclick="copyCode()">Copy</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closeCreate()">Close</button>
+      <button class="btn-primary" id="c-submit" onclick="doCreate()">GENERATE TRACKING NUMBER</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT MODAL ══ -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal">
+    <h3>Edit Shipment</h3>
+    <input type="hidden" id="e-id" />
+    <div class="form-grid">
+      <div class="fg"><label class="fl">Sender</label><input class="fi" id="e-sender" /></div>
+      <div class="fg"><label class="fl">Recipient</label><input class="fi" id="e-recipient" /></div>
+      <div class="fg"><label class="fl">Origin</label><input class="fi" id="e-origin" /></div>
+      <div class="fg"><label class="fl">Destination</label><input class="fi" id="e-dest" /></div>
+      <div class="fg"><label class="fl">Status</label>
+        <select class="fs" id="e-status">
+          <option value="pending">Pending</option>
+          <option value="processing">Processing</option>
+          <option value="in-transit">In Transit</option>
+          <option value="delivered">Delivered</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">ETA</label><input class="fi" id="e-eta" type="date" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closeEdit()">Cancel</button>
+      <button class="btn-primary" onclick="saveEdit()">SAVE CHANGES</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// STORAGE — uses localStorage (works offline + online)
+// ══════════════════════════════════════════════
+const SKEY = 'swiftship_v2';
+const PKEY = 'swiftship_pass';
+
+function getData() { try { return JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch { return []; } }
+function setData(d) { localStorage.setItem(SKEY, JSON.stringify(d)); }
+function getPass() { return localStorage.getItem(PKEY) || 'admin123'; }
+
+// ══════════════════════════════════════════════
+// COUNTRIES LIST
+// ══════════════════════════════════════════════
+const COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Angola","Argentina","Australia","Austria","Azerbaijan",
+  "Bahrain","Bangladesh","Belgium","Benin","Bolivia","Bosnia","Brazil","Bulgaria","Burkina Faso",
+  "Cameroon","Canada","Chile","China","Colombia","Congo","Costa Rica","Croatia","Cuba","Cyprus",
+  "Czech Republic","Denmark","Dominican Republic","DR Congo","Ecuador","Egypt","Ethiopia",
+  "Finland","France","Gabon","Germany","Ghana","Greece","Guatemala","Guinea","Haiti","Honduras",
+  "Hungary","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast",
+  "Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kuwait","Lebanon","Libya","Malaysia",
+  "Mali","Mexico","Morocco","Mozambique","Netherlands","New Zealand","Niger","Nigeria",
+  "Norway","Oman","Pakistan","Panama","Paraguay","Peru","Philippines","Poland","Portugal",
+  "Qatar","Romania","Russia","Rwanda","Saudi Arabia","Senegal","Serbia","Sierra Leone",
+  "Singapore","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan",
+  "Sweden","Switzerland","Syria","Tanzania","Thailand","Togo","Tunisia","Turkey","Uganda",
+  "Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan",
+  "Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+];
+
+function populateCountries() {
+  ['c-origin','c-dest'].forEach(id => {
+    const sel = document.getElementById(id);
+    COUNTRIES.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  });
+}
+
+// ══════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + type;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ══════════════════════════════════════════════
+// VIEW SWITCHING
+// ══════════════════════════════════════════════
+function showPublic() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-public').classList.add('active');
+}
+function showLogin() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-login').classList.add('active');
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-err').style.display = 'none';
+  setTimeout(() => document.getElementById('login-pass').focus(), 100);
+}
+function showAdmin() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-admin').classList.add('active');
+  refreshDashboard();
+}
+function doLogin() {
+  const pass = document.getElementById('login-pass').value;
+  if (pass === getPass()) {
+    showAdmin();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('login-pass').value = '';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ══════════════════════════════════════════════
+// PUBLIC TRACKING
+// ══════════════════════════════════════════════
+function pubTrack() {
+  const raw = document.getElementById('pub-input').value.trim().toUpperCase();
+  const result = document.getElementById('track-result');
+  const btn = document.querySelector('.track-btn-pub');
+
+  if (!raw) { alert('Please enter a tracking number'); return; }
+
+  btn.innerHTML = '<span class="spinner"></span>SEARCHING...';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    btn.innerHTML = 'TRACK NOW';
+    btn.disabled = false;
+
+    const shipments = getData();
+    const pkg = shipments.find(s => s.id === raw);
+
+    if (!pkg) {
+      result.classList.remove('show');
+      alert('No package found. Please check your tracking number.');
+      return;
+    }
+
+    const labels = { 'in-transit':'In Transit','delivered':'Delivered','processing':'Processing','pending':'Pending' };
+    const badgeCls = { 'in-transit':'transit','delivered':'delivered','processing':'processing','pending':'pending' };
+
+    document.getElementById('r-code').textContent = raw;
+    document.getElementById('r-route').textContent = `${pkg.origin} → ${pkg.dest}`;
+    document.getElementById('r-badge').innerHTML = `<span class="sbadge ${badgeCls[pkg.status]||'pending'}">${labels[pkg.status]||pkg.status}</span>`;
+
+    document.getElementById('r-timeline').innerHTML = (pkg.events||[]).map(e => `
+      <li class="${e.done?'done':''} ${e.current?'current':''}">
+        <div>${e.label}</div>
+        <div class="tl-time">${e.time}</div>
+      </li>`).join('');
+
+    const etaMap = {
+      'delivered': `✅ Delivered — ${pkg.updatedAt}`,
+      'in-transit': pkg.eta ? `📅 Estimated Delivery: ${pkg.eta}` : `📅 In transit — ETA to be confirmed`,
+      'processing': pkg.eta ? `⏳ Est. Delivery: ${pkg.eta} — Currently processing` : `⏳ Processing at origin facility`,
+      'pending': `🕐 Awaiting pickup`,
+    };
+    document.getElementById('r-eta').textContent = etaMap[pkg.status]||'';
+    result.classList.add('show');
+  }, 1000);
+}
+
+document.getElementById('pub-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') pubTrack();
+});
+
+// ══════════════════════════════════════════════
+// ADMIN NAV
+// ══════════════════════════════════════════════
+const TITLES = { dashboard:'Dashboard', all:'All Shipments', update:'Update Location' };
+
+function goPanel(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const match = document.querySelector(`.nav-item[onclick*="'${name}'"]`);
+  if (match) match.classList.add('active');
+  document.getElementById('page-title').textContent = TITLES[name]||name;
+  if (name === 'dashboard') refreshDashboard();
+  if (name === 'all') refreshAll();
+  if (name === 'update') refreshUpdateDropdown();
+}
+
+// ══════════════════════════════════════════════
+// STATUS BADGE HTML
+// ══════════════════════════════════════════════
+function badge(status) {
+  const map = {
+    'in-transit':['badge-transit','In Transit'],
+    'delivered':['badge-delivered','Delivered'],
+    'processing':['badge-processing','Processing'],
+    'pending':['badge-pending','Pending'],
+  };
+  const [cls, lbl] = map[status]||['badge-pending',status];
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+function refreshDashboard() {
+  const data = getData();
+  document.getElementById('s-total').textContent = data.length;
+  document.getElementById('s-transit').textContent = data.filter(s=>s.status==='in-transit').length;
+  document.getElementById('s-delivered').textContent = data.filter(s=>s.status==='delivered').length;
+  document.getElementById('s-processing').textContent = data.filter(s=>s.status==='processing').length;
+
+  const tbody = document.getElementById('dash-tbody');
+  const recent = data.slice(0,8);
+  if (!recent.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📦</div><p>No shipments yet — create your first one!</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = recent.map(s => `<tr>
+    <td class="td-code">${s.id}</td>
+    <td>${s.sender}</td>
+    <td>${s.recipient}</td>
+    <td style="font-size:0.75rem;">${s.origin} → ${s.dest}</td>
+    <td>${badge(s.status)}</td>
+    <td><div class="act-btns">
+      <button class="btn-xs a" onclick="openEdit('${s.id}')">Edit</button>
+      <button class="btn-xs" onclick="quickUpdate('${s.id}')">Update</button>
+      <button class="btn-xs d" onclick="delShipment('${s.id}')">Del</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// ALL SHIPMENTS
+// ══════════════════════════════════════════════
+let currentFilter = '';
+function refreshAll() {
+  let data = getData();
+  if (currentFilter) data = data.filter(s=>s.status===currentFilter);
+  document.getElementById('all-count').textContent = data.length;
+  const tbody = document.getElementById('all-tbody');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📦</div><p>No shipments found</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(s => `<tr>
+    <td class="td-code">${s.id}</td>
+    <td>${s.sender}</td>
+    <td>${s.recipient}</td>
+    <td style="font-size:0.75rem;">${s.origin}</td>
+    <td style="font-size:0.75rem;">${s.dest}</td>
+    <td style="font-size:0.75rem;">${s.service}</td>
+    <td>${badge(s.status)}</td>
+    <td style="font-size:0.72rem;color:rgba(255,255,255,0.35);">${s.eta||'—'}</td>
+    <td><div class="act-btns">
+      <button class="btn-xs a" onclick="openEdit('${s.id}')">Edit</button>
+      <button class="btn-xs" onclick="quickUpdate('${s.id}')">Update</button>
+      <button class="btn-xs d" onclick="delShipment('${s.id}')">Del</button>
+    </div></td>
+  </tr>`).join('');
+}
+function setFilter(v) { currentFilter = v; refreshAll(); }
+
+// ══════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim().toUpperCase();
+  if (!q) return;
+  const data = getData();
+  const match = data.find(s => s.id.includes(q));
+  if (match) {
+    goPanel('all', null);
+    setTimeout(() => {
+      document.getElementById('all-count').textContent = '1 result';
+      document.getElementById('all-tbody').innerHTML = `<tr style="background:rgba(245,166,35,0.05);">
+        <td class="td-code">${match.id}</td>
+        <td>${match.sender}</td><td>${match.recipient}</td>
+        <td style="font-size:0.75rem;">${match.origin}</td>
+        <td style="font-size:0.75rem;">${match.dest}</td>
+        <td style="font-size:0.75rem;">${match.service}</td>
+        <td>${badge(match.status)}</td>
+        <td style="font-size:0.72rem;color:rgba(255,255,255,0.35);">${match.eta||'—'}</td>
+        <td><div class="act-btns">
+          <button class="btn-xs a" onclick="openEdit('${match.id}')">Edit</button>
+          <button class="btn-xs" onclick="quickUpdate('${match.id}')">Update</button>
+        </div></td>
+      </tr>`;
+    }, 50);
+  } else {
+    toast('No shipment found: ' + q, 'err');
+  }
+}
+
+// ══════════════════════════════════════════════
+// CREATE SHIPMENT
+// ══════════════════════════════════════════════
+function genTrackingNumber(originCountry) {
+  const num = Math.floor(1000000 + Math.random() * 9000000);
+  const suffix = (originCountry||'XX').replace(/[^a-zA-Z]/g,'').substring(0,2).toUpperCase()||'XX';
+  return `SWS-${num}-${suffix}`;
+}
+
+function openCreate() {
+  document.getElementById('modal-create').classList.add('open');
+  document.getElementById('c-result').classList.remove('show');
+  document.getElementById('c-submit').textContent = 'GENERATE TRACKING NUMBER';
+  ['c-sender','c-sender-phone','c-origin-city','c-recipient','c-recipient-phone','c-dest-city','c-dest-addr','c-desc','c-weight','c-eta','c-notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('c-origin').selectedIndex = 0;
+  document.getElementById('c-dest').selectedIndex = 0;
+  document.getElementById('c-service').selectedIndex = 0;
+}
+function closeCreate() { document.getElementById('modal-create').classList.remove('open'); }
+
+function doCreate() {
+  const sender = document.getElementById('c-sender').value.trim();
+  const recipient = document.getElementById('c-recipient').value.trim();
+  const originCountry = document.getElementById('c-origin').value;
+  const originCity = document.getElementById('c-origin-city').value.trim();
+  const destCountry = document.getElementById('c-dest').value;
+  const destCity = document.getElementById('c-dest-city').value.trim();
+  const desc = document.getElementById('c-desc').value.trim();
+
+  if (!sender||!recipient||!originCountry||!originCity||!destCountry||!destCity||!desc) {
+    toast('Please fill in all required fields (*)', 'err'); return;
+  }
+
+  const origin = `${originCity}, ${originCountry}`;
+  const dest = `${destCity}, ${destCountry}`;
+  const tracking = genTrackingNumber(originCountry);
+  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  const shipment = {
+    id: tracking,
+    sender,
+    senderPhone: document.getElementById('c-sender-phone').value,
+    recipient,
+    recipientPhone: document.getElementById('c-recipient-phone').value,
+    origin, dest,
+    destAddr: document.getElementById('c-dest-addr').value,
+    desc,
+    weight: document.getElementById('c-weight').value||'—',
+    service: document.getElementById('c-service').value,
+    eta: document.getElementById('c-eta').value||'',
+    notes: document.getElementById('c-notes').value,
+    status: 'processing',
+    createdAt: now,
+    updatedAt: now,
+    events: [
+      { label: `Shipment registered — ${origin}`, time: now, done: true, current: false },
+      { label: `Package received at ${originCity} facility`, time: now, done: false, current: true },
+    ]
+  };
+
+  const data = getData();
+  data.unshift(shipment);
+  setData(data);
+
+  document.getElementById('c-code').textContent = tracking;
+  document.getElementById('c-result').classList.add('show');
+  document.getElementById('c-submit').textContent = 'GENERATE ANOTHER';
+
+  ['c-sender','c-sender-phone','c-origin-city','c-recipient','c-recipient-phone','c-dest-city','c-dest-addr','c-desc','c-weight','c-eta','c-notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('c-origin').selectedIndex = 0;
+  document.getElementById('c-dest').selectedIndex = 0;
+
+  refreshDashboard();
+  toast(`✅ Created: ${tracking}`, 'ok');
+}
+
+function copyCode() {
+  const code = document.getElementById('c-code').textContent;
+  navigator.clipboard.writeText(code).then(() => toast('Copied: ' + code));
+}
+
+// ══════════════════════════════════════════════
+// EDIT SHIPMENT
+// ══════════════════════════════════════════════
+function openEdit(id) {
+  const s = getData().find(x=>x.id===id);
+  if (!s) return;
+  document.getElementById('e-id').value = id;
+  document.getElementById('e-sender').value = s.sender;
+  document.getElementById('e-recipient').value = s.recipient;
+  document.getElementById('e-origin').value = s.origin;
+  document.getElementById('e-dest').value = s.dest;
+  document.getElementById('e-status').value = s.status;
+  document.getElementById('e-eta').value = s.eta||'';
+  document.getElementById('modal-edit').classList.add('open');
+}
+function closeEdit() { document.getElementById('modal-edit').classList.remove('open'); }
+function saveEdit() {
+  const id = document.getElementById('e-id').value;
+  const data = getData();
+  const idx = data.findIndex(x=>x.id===id);
+  if (idx===-1) return;
+  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  data[idx].sender = document.getElementById('e-sender').value;
+  data[idx].recipient = document.getElementById('e-recipient').value;
+  data[idx].origin = document.getElementById('e-origin').value;
+  data[idx].dest = document.getElementById('e-dest').value;
+  data[idx].status = document.getElementById('e-status').value;
+  data[idx].eta = document.getElementById('e-eta').value;
+  data[idx].updatedAt = now;
+  setData(data);
+  closeEdit();
+  refreshDashboard();
+  refreshAll();
+  toast('Shipment updated', 'ok');
+}
+
+// ══════════════════════════════════════════════
+// DELETE
+// ══════════════════════════════════════════════
+function delShipment(id) {
+  if (!confirm(`Delete ${id}? This cannot be undone.`)) return;
+  setData(getData().filter(s=>s.id!==id));
+  refreshDashboard();
+  refreshAll();
+  toast('Deleted');
+}
+
+// ══════════════════════════════════════════════
+// UPDATE LOCATION
+// ══════════════════════════════════════════════
+function refreshUpdateDropdown() {
+  const data = getData();
+  const sel = document.getElementById('u-select');
+  sel.innerHTML = '<option value="">— Choose —</option>' +
+    data.map(s=>`<option value="${s.id}">${s.id} — ${s.sender} → ${s.recipient}</option>`).join('');
+  document.getElementById('u-fields').style.display = 'none';
+  document.getElementById('u-preview').innerHTML = `<div class="empty"><div class="empty-icon">📍</div><p>Select a shipment to see its timeline</p></div>`;
+}
+
+function loadForUpdate() {
+  const id = document.getElementById('u-select').value;
+  if (!id) {
+    document.getElementById('u-fields').style.display = 'none';
+    document.getElementById('u-preview').innerHTML = `<div class="empty"><div class="empty-icon">📍</div><p>Select a shipment to see its timeline</p></div>`;
+    return;
+  }
+  const s = getData().find(x=>x.id===id);
+  if (!s) return;
+  document.getElementById('u-fields').style.display = 'block';
+  document.getElementById('u-status').value = s.status;
+  if (s.eta) document.getElementById('u-eta').value = s.eta;
+
+  document.getElementById('u-preview').innerHTML = `
+    <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.3);margin-bottom:4px;">📍 Live Timeline</div>
+    <div style="font-weight:600;margin-bottom:4px;font-size:0.88rem;">${s.id}</div>
+    <div style="font-size:0.78rem;color:rgba(255,255,255,0.4);margin-bottom:16px;">${s.origin} → ${s.dest}</div>
+    <div style="margin-bottom:12px;">${badge(s.status)}</div>
+    <ul class="timeline-preview">
+      ${(s.events||[]).map(e=>`
+        <li class="${e.done?'done':''} ${e.current?'cur':''}">
+          <div class="tl-lbl">${e.label}</div>
+          <div class="tl-meta">${e.time}</div>
+        </li>`).join('')}
+    </ul>`;
+}
+
+function doUpdateLocation() {
+  const id = document.getElementById('u-select').value;
+  const loc = document.getElementById('u-loc').value.trim();
+  const event = document.getElementById('u-event').value.trim();
+  const status = document.getElementById('u-status').value;
+  const eta = document.getElementById('u-eta').value;
+
+  if (!id) { toast('Select a shipment', 'err'); return; }
+  if (!loc||!event) { toast('Fill in location and event description', 'err'); return; }
+
+  const data = getData();
+  const idx = data.findIndex(x=>x.id===id);
+  if (idx===-1) return;
+
+  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  data[idx].events = (data[idx].events||[]).map(e=>({...e,current:false,done:true}));
+  data[idx].events.push({ label:`${event} — ${loc}`, time:now, done:false, current:true });
+  data[idx].status = status;
+  data[idx].updatedAt = now;
+  if (eta) data[idx].eta = eta;
+
+  setData(data);
+  document.getElementById('u-loc').value = '';
+  document.getElementById('u-event').value = '';
+  loadForUpdate();
+  refreshDashboard();
+  toast('✅ Location updated!', 'ok');
+}
+
+function quickUpdate(id) {
+  goPanel('update', null);
+  setTimeout(() => {
+    document.getElementById('u-select').value = id;
+    loadForUpdate();
+  }, 50);
+}
+
+// ══════════════════════════════════════════════
+// MODAL CLOSE ON OVERLAY CLICK
+// ══════════════════════════════════════════════
+document.getElementById('modal-create').addEventListener('click', e => { if(e.target===e.currentTarget) closeCreate(); });
+document.getElementById('modal-edit').addEventListener('click', e => { if(e.target===e.currentTarget) closeEdit(); });
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+populateCountries();
+
+// Seed demo data if empty
+if (!getData().length) {
+  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  setData([
+    {
+      id:'SWS-2849301-NG', sender:'Emeka Okafor', senderPhone:'+234 801 234 5678',
+      recipient:'James Wilson', recipientPhone:'+44 7700 900123',
+      origin:'Lagos, Nigeria', dest:'London, United Kingdom',
+      desc:'Electronics', weight:'3.2', service:'Express', eta:'2026-03-05',
+      notes:'Handle with care', status:'in-transit',
+      createdAt:'26 Feb 2026, 10:00', updatedAt:'28 Feb 2026, 09:14',
+      events:[
+        {label:'Shipment registered — Lagos, Nigeria',time:'26 Feb 2026, 10:00',done:true,current:false},
+        {label:'Package received at Lagos facility',time:'26 Feb 2026, 10:00',done:true,current:false},
+        {label:'Departed Lagos International Airport',time:'26 Feb 2026, 18:45',done:true,current:false},
+        {label:'Cleared customs — UK Border Agency',time:'27 Feb 2026, 22:10',done:true,current:false},
+        {label:'Out for delivery — London',time:'28 Feb 2026, 09:14',done:false,current:true},
+      ]
+    },
+    {
+      id:'SWS-1020384-AB', sender:'Fatima Aliyu', senderPhone:'+234 809 876 5432',
+      recipient:'Priya Sharma', recipientPhone:'+971 50 123 4567',
+      origin:'Abuja, Nigeria', dest:'Dubai, United Arab Emirates',
+      desc:'Documents', weight:'1.2', service:'Standard', eta:'2026-02-25',
+      notes:'', status:'delivered',
+      createdAt:'22 Feb 2026, 08:30', updatedAt:'25 Feb 2026, 14:34',
+      events:[
+        {label:'Shipment registered — Abuja, Nigeria',time:'22 Feb 2026, 08:30',done:true,current:false},
+        {label:'Departed Abuja Airport',time:'23 Feb 2026, 17:20',done:true,current:false},
+        {label:'Arrived Dubai',time:'24 Feb 2026, 23:50',done:true,current:false},
+        {label:'Delivered — Signed by RECEPTION',time:'25 Feb 2026, 14:34',done:true,current:true},
+      ]
+    }
+  ]);
+}
+
+refreshDashboard();
+</script>
+</body>
+</html>
